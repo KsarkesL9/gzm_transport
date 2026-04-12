@@ -16,22 +16,46 @@ class StaticProvider:
         "stops.txt", "trips.txt", "feed_info.txt",
     ]
 
-    GTFS_URL = (
-        "https://otwartedane.metropoliagzm.pl/dataset/"
-        "9285399c-01da-4a96-abf3-59f8c2d7e8d7/resource/"
-        "8cfa8e6c-e151-409e-b643-1f9047f01541/download"
-    )
+    DATASET_ID = "rozklady-jazdy-i-lokalizacja-przystankow-gtfs-wersja-rozszerzona"
+    CKAN_API = "https://otwartedane.metropoliagzm.pl/api/3/action/package_show"
 
     def __init__(self, data_path: str):
         self.path = data_path
         self.logger = logging.getLogger(__name__)
 
+    def _get_latest_gtfs_url(self) -> str:
+        r = requests.get(
+            self.CKAN_API,
+            params={"id": self.DATASET_ID},
+            timeout=30,
+        )
+        r.raise_for_status()
+        data = r.json()
+
+        if not data.get("success"):
+            raise RuntimeError("CKAN API zwróciło błąd: " + str(data))
+
+        resources = data["result"]["resources"]
+        zip_resources = [
+            res for res in resources
+            if res.get("format", "").upper() == "ZIP" and res.get("url")
+        ]
+
+        if not zip_resources:
+            raise RuntimeError(
+                "Nie znaleziono zasobów ZIP w zbiorze danych GTFS."
+            )
+
+        zip_resources.sort(key=lambda r: r.get("created", ""), reverse=True)
+        return zip_resources[0]["url"]
+
     def download_gtfs(self, extract_to: str | None = None) -> str:
         dest = extract_to or self.path
         os.makedirs(dest, exist_ok=True)
 
-        self.logger.info("Pobieranie GTFS z %s", self.GTFS_URL)
-        r = requests.get(self.GTFS_URL, timeout=60)
+        gtfs_url = self._get_latest_gtfs_url()
+        self.logger.info("Pobieranie GTFS z %s", gtfs_url)
+        r = requests.get(gtfs_url, timeout=60)
         r.raise_for_status()
 
         with zipfile.ZipFile(BytesIO(r.content)) as zf:
