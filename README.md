@@ -1,6 +1,6 @@
 # gzm_transport
 
-Biblioteka Python do pobierania danych transportu publicznego GZM — dane statyczne GTFS + pozycje GPS i odjazdy na żywo z SDIP.
+Biblioteka Python do pracy z danymi transportu publicznego GZM. Obsługuje pliki GTFS (rozkłady, przystanki) i dane na żywo z SDIP (pozycje GPS, odjazdy).
 
 ## Instalacja
 
@@ -14,65 +14,64 @@ pip install -e .
 from gzm_transport import GZMTransport
 
 with GZMTransport(gtfs_path="./gtfs_data") as gzm:
-    # pobranie plików GTFS
+    # pobranie GTFS
     gzm.download_gtfs("./gtfs_data")
 
-    # przystanki, linie
+    # przystanki i linie
     stops = gzm.static.get_stops()
     lines = gzm.static.get_active_lines()
     katowice = gzm.static.search_stops("Katowice")
 
-    # pozycje GPS pojazdów na żywo
+    # GPS na żywo
     vehicles = gzm.live.fetch_vehicle_positions()
 
     # odjazdy z przystanku
     deps = gzm.live.fetch_stop_departures(stop_id=10001)
 
-    # jako DataFrame
+    # to samo jako DataFrame
     df = gzm.vehicles_to_dataframe()
 ```
 
 ## API
 
-### `GZMTransport(gtfs_path=".")`
+### GZMTransport
 
-Główny klient. Używaj jako context manager (`with`).
+Główny klient. Używaj jako context manager.
 
-| Metoda | Zwraca |
+| Metoda | Co zwraca |
 |---|---|
-| `download_gtfs(path)` | ścieżka do rozpakowanych plików |
+| `download_gtfs(path)` | ścieżka do plików |
 | `get_all_vehicles()` | `list[VehiclePosition]` |
 | `get_departures(stop_id)` | `list[Departure]` |
-| `vehicles_to_dataframe()` | `pd.DataFrame` |
-| `departures_to_dataframe(stop_id)` | `pd.DataFrame` |
+| `vehicles_to_dataframe()` | `DataFrame` |
+| `departures_to_dataframe(stop_id)` | `DataFrame` |
 
-### `StaticProvider` — dane GTFS
+### StaticProvider (GTFS)
 
-`get_stops()`, `get_routes()`, `get_trips()`, `get_stop_times()`, `get_calendar()`, `get_calendar_dates()`, `get_shapes()`, `get_agency()` — każda zwraca `pd.DataFrame`.
+`get_stops()`, `get_routes()`, `get_trips()`, `get_stop_times()`, `get_calendar()`, `get_calendar_dates()`, `get_shapes()`, `get_agency()` zwracają `DataFrame`.
 
-| Metoda | Opis |
-|---|---|
-| `download_gtfs(path)` | pobiera ZIP z otwartedane.metropoliagzm.pl |
-| `search_stops(query)` | wyszukiwanie przystanków po nazwie |
-| `get_stop_schedule(stop_id)` | rozkład jazdy dla przystanku |
-| `get_active_lines()` | lista `[short_name, long_name]` |
-| `available_files()` | pliki GTFS dostępne w katalogu |
+Poza tym:
+- `download_gtfs(path)` - pobiera ZIP z otwartedane.metropoliagzm.pl
+- `search_stops(query)` - szukanie przystanków po nazwie
+- `get_stop_schedule(stop_id)` - rozkład dla przystanku
+- `get_active_lines()` - lista par `[short_name, long_name]`
+- `available_files()` - jakie pliki GTFS są w katalogu
 
-### `LiveProvider` — dane SDIP na żywo
+### LiveProvider (SDIP)
 
-| Metoda | Zwraca |
+| Metoda | Co zwraca |
 |---|---|
 | `fetch_vehicle_positions(line_type)` | `list[VehiclePosition]` |
 | `fetch_stop_departures(stop_id)` | `list[Departure]` |
-| `fetch_stop_info(stop_id)` | `StopInfo` lub `None` |
+| `fetch_stop_info(stop_id)` | `StopInfo` albo `None` |
 
 ### Modele
 
-- **`VehiclePosition`** — `timestamp`, `line_name`, `vehicle_id`, `direction`, `lat`, `lon`
-- **`Departure`** — `timestamp`, `stop_id`, `line_name`, `destination`, `departure_time`, `is_live`
-- **`StopInfo`** — `stop_id`, `name`, `lat`, `lon`
+Wszystkie mają `.to_dict()`.
 
-Każdy model ma `.to_dict()`.
+- `VehiclePosition` - timestamp, line_name, vehicle_id, direction, lat, lon
+- `Departure` - timestamp, stop_id, line_name, destination, departure_time, is_live
+- `StopInfo` - stop_id, name, lat, lon
 
 ## Testy
 
