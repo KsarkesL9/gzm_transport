@@ -1,0 +1,119 @@
+from __future__ import annotations
+
+from bs4 import BeautifulSoup
+from .models import VehiclePosition, Departure, StopInfo
+from datetime import datetime
+import logging
+import time
+
+
+class LiveProvider:
+
+    def __init__(self, session, base_url: str, retries: int = 2):
+        self.session = session
+        self.base_url = base_url
+        self.retries = retries
+        self.logger = logging.getLogger(__name__)
+
+    def _get(self, params: dict, timeout: int = 15):
+        last_exc = None
+        for attempt in range(1 + self.retries):
+            try:
+                r = self.session.get(self.base_url, params=params, timeout=timeout)
+                r.raise_for_status()
+                return r
+            except Exception as e:
+                last_exc = e
+                if attempt < self.retries:
+                    time.sleep(1 * (attempt + 1))
+        raise last_exc
+
+    def fetch_vehicle_positions(self, line_type: str = "all") -> list[VehiclePosition]:
+        params = {"command": "planner", "action": "v", "lt": line_type}
+        try:
+            r = self._get(params)
+            data = r.json()
+            now = datetime.now().isoformat()
+
+            positions: list[VehiclePosition] = []
+            for v in data:
+                lat = v.get("lat", 0)
+                lon = v.get("lon", 0)
+                # SDIP podaje współrzędne w 1/3600000 stopnia, nie w stopniach
+                if lat > 1000:
+                    lat /= 3_600_000.0
+                if lon > 1000:
+                    lon /= 3_600_000.0
+
+                positions.append(
+                    VehiclePosition(
+                        timestamp=now,
+                        line_name=str(v.get("l", "")),
+                        vehicle_id=str(v.get("v", "")),
+                        direction=v.get("d", ""),
+                        lat=float(lat),
+                        lon=float(lon),
+                    )
+                )
+            return positions
+
+        except Exception as e:
+            self.logger.error("GPS Stream Error: %s", e)
+            return []
+
+    fetch_gps_stream = fetch_vehicle_positions
+
+    def fetch_stop_departures(self, stop_id: int) -> list[Departure]:
+        params = {"command": "planner", "action": "sd", "id": stop_id}
+        try:
+            r = self._get(params)
+            soup = BeautifulSoup(r.text, "html.parser")
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            deps: list[Departure] = []
+            for row in soup.find_all("div", class_="departure"):
+                line_el = row.find("div", class_="line")
+                dest_el = row.find("div", class_="destination")
+                time_el = row.find("div", class_="time")
+
+                if not (line_el and dest_el and time_el):
+                    continue
+
+                # status-1 = dane GPS na żywo, status-0 = rozkładowe
+                is_live = "status-1" in row.get("class", [])
+
+                deps.append(
+                    Departure(
+                        timestamp=now,
+                        stop_id=stop_id,
+                        line_name=line_el.get_text(strip=True),
+                        destination=dest_el.get("title", dest_el.get_text(strip=True)),
+                        departure_time=time_el.get_text(strip=True),
+                        is_live=is_live,
+                    )
+                )
+            return deps
+
+        except Exception as e:
+            self.logger.error("Departure Fetch Error: %s", e)
+            return []
+
+    def fetch_stop_info(self, stop_id: int) -> StopInfo | None:
+        params = {"command": "planner", "action": "sd", "id": stop_id}
+        try:
+            r = self._get(params)
+            soup = BeautifulSoup(r.text, "html.parser")
+
+            name_tag = soup.find("input", {"name": "stop-name"})
+            lat_tag = soup.find("input", {"name": "stop-lat"})
+            lon_tag = soup.find("input", {"name": "stop-lon"})
+
+            name = name_tag["value"] if name_tag else f"Stop {stop_id}"
+            lat = float(lat_tag["value"]) if lat_tag else None
+            lon = float(lon_tag["value"]) if lon_tag else None
+
+            return StopInfo(stop_id=stop_id, name=name, lat=lat, lon=lon)
+
+        except Exception as e:
+            self.logger.error("Stop Info Error: %s", e)
+            return None
