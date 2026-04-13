@@ -22,8 +22,11 @@ with GZMTransport(gtfs_path="./gtfs_data") as gzm:
     lines = gzm.static.get_active_lines()
     katowice = gzm.static.search_stops("Katowice")
 
-    # GPS na żywo
+    # GPS na żywo — wszystkie pojazdy
     vehicles = gzm.live.fetch_vehicle_positions()
+
+    # tylko tramwaje
+    trams = gzm.live.fetch_vehicle_positions(line_type="tram")
 
     # odjazdy z przystanku
     deps = gzm.live.fetch_stop_departures(stop_id=10001)
@@ -64,6 +67,15 @@ Poza tym:
 | `fetch_vehicle_positions(line_type)` | `list[VehiclePosition]` |
 | `fetch_stop_departures(stop_id)` | `list[Departure]` |
 | `fetch_stop_info(stop_id)` | `StopInfo` albo `None` |
+
+`line_type` — filtrowanie pojazdów po typie. Domyślnie `"all"`.
+
+| Wartość | Alias | Typ pojazdu |
+|---|---|---|
+| `"all"` | — | wszystkie |
+| `"tram"` | `"t"`, `"0"` | tramwaje |
+| `"bus"` | `"a"`, `"b"`, `"3"` | autobusy |
+| `"trolleybus"` | `"trolejbus"`, `"11"` | trolejbusy |
 
 ### Modele
 

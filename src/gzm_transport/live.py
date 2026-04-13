@@ -6,6 +6,13 @@ from datetime import datetime
 import logging
 import time
 
+LINE_TYPE_MAP = {
+    "all": "all",
+    "tram": "0", "t": "0", "0": "0",
+    "bus": "3", "a": "3", "b": "3", "3": "3",
+    "trolleybus": "11", "trolejbus": "11", "11": "11",
+}
+
 
 class LiveProvider:
 
@@ -29,7 +36,8 @@ class LiveProvider:
         raise last_exc
 
     def fetch_vehicle_positions(self, line_type: str = "all") -> list[VehiclePosition]:
-        params = {"command": "planner", "action": "v", "lt": line_type}
+        lt_value = LINE_TYPE_MAP.get(line_type.lower(), line_type)
+        params = {"command": "planner", "action": "v", "lt": lt_value}
         try:
             r = self._get(params)
             data = r.json()
