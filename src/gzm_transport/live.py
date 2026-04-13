@@ -37,22 +37,17 @@ class LiveProvider:
 
             positions: list[VehiclePosition] = []
             for v in data:
-                lat = v.get("lat", 0)
-                lon = v.get("lon", 0)
-                # SDIP podaje współrzędne w 1/3600000 stopnia, nie w stopniach
-                if lat > 1000:
-                    lat /= 3_600_000.0
-                if lon > 1000:
-                    lon /= 3_600_000.0
+                lat = float(v.get("lat", 0))
+                lon = float(v.get("lon", 0))
 
                 positions.append(
                     VehiclePosition(
                         timestamp=now,
-                        line_name=str(v.get("l", "")),
-                        vehicle_id=str(v.get("v", "")),
-                        direction=v.get("d", ""),
-                        lat=float(lat),
-                        lon=float(lon),
+                        line_name=str(v.get("lineLabel", "")),
+                        vehicle_id=str(v.get("id", "")),
+                        direction=v.get("trip", ""),
+                        lat=lat,
+                        lon=lon,
                     )
                 )
             return positions
@@ -112,9 +107,9 @@ class LiveProvider:
             r = self._get(params)
             soup = BeautifulSoup(r.text, "html.parser")
 
-            name_tag = soup.find("input", {"name": "stop-name"})
-            lat_tag = soup.find("input", {"name": "stop-lat"})
-            lon_tag = soup.find("input", {"name": "stop-lon"})
+            name_tag = soup.find("input", {"id": "stop-name"})
+            lat_tag = soup.find("input", {"id": "stop-lat"})
+            lon_tag = soup.find("input", {"id": "stop-lon"})
 
             name = name_tag["value"] if name_tag else f"Stop {stop_id}"
             lat = float(lat_tag["value"]) if lat_tag else None
