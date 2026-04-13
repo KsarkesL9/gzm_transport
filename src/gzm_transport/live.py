@@ -79,8 +79,16 @@ class LiveProvider:
                 if not (line_el and dest_el and time_el):
                     continue
 
-                # status-1 = dane GPS na żywo, status-0 = rozkładowe
-                is_live = "status-1" in row.get("class", [])
+                time_text = time_el.get_text(strip=True)
+                # status-1 = pojazd na przystanku (>>>)
+                # "min" w czasie = prognoza GPS (np. "4 min")
+                # ">>>" = pojazd dojeżdża/na przystanku
+                # Czas w formacie HH:MM bez powyższych = dane rozkładowe
+                is_live = (
+                    "status-1" in row.get("class", [])
+                    or "min" in time_text.lower()
+                    or ">>>" in time_text
+                )
 
                 deps.append(
                     Departure(
